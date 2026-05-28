@@ -1,0 +1,8 @@
+.venv/
+data/
+media/uploads/
+media/thumbnails/
+__pycache__/
+*.pyc
+*.db
+.DS_Store

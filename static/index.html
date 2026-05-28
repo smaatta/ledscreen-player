@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LedscreenPlayer — Control Panel</title>
+<style>
+/* ── Reset & base ──────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;border:none;outline:none}
+input,select,textarea{outline:none;font:inherit}
+
+/* ── Layout ────────────────────────────────────────────────── */
+#app{display:flex;height:100vh;overflow:hidden}
+
+/* Sidebar */
+#sidebar{width:220px;background:#161b27;display:flex;flex-direction:column;border-right:1px solid #1e2535;flex-shrink:0}
+.brand{padding:20px 16px;font-size:1.1rem;font-weight:700;color:#60a5fa;letter-spacing:.5px;border-bottom:1px solid #1e2535}
+.brand span{font-size:.7rem;display:block;color:#64748b;font-weight:400;margin-top:2px}
+nav{flex:1;padding:12px 0}
+nav a{display:flex;align-items:center;gap:10px;padding:10px 18px;color:#94a3b8;transition:.15s;font-size:.9rem;border-radius:0}
+nav a:hover{background:#1e2535;color:#e2e8f0}
+nav a.active{background:#1e2d4a;color:#60a5fa;border-left:3px solid #60a5fa;padding-left:15px}
+nav a svg{width:18px;height:18px;flex-shrink:0}
+.sidebar-footer{padding:12px 16px;border-top:1px solid #1e2535;font-size:.75rem;color:#64748b}
+#status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:6px;transition:.3s}
+#status-dot.online{background:#22c55e}
+
+/* Main area */
+#main{flex:1;overflow-y:auto;background:#0f1117}
+.page{display:none;padding:28px 32px}
+.page.active{display:block}
+.page-title{font-size:1.4rem;font-weight:700;color:#f1f5f9;margin-bottom:6px}
+.page-sub{color:#64748b;font-size:.875rem;margin-bottom:24px}
+
+/* Cards */
+.card{background:#161b27;border:1px solid #1e2535;border-radius:10px;padding:20px;margin-bottom:16px}
+.card-title{font-size:.8rem;text-transform:uppercase;letter-spacing:.8px;color:#64748b;margin-bottom:12px}
+
+/* Stat row */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:#161b27;border:1px solid #1e2535;border-radius:10px;padding:16px}
+.stat-val{font-size:1.8rem;font-weight:700;color:#60a5fa}
+.stat-lbl{font-size:.78rem;color:#64748b;margin-top:4px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:.875rem;font-weight:500;transition:.15s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-secondary{background:#1e2535;color:#94a3b8;border:1px solid #2d3748}.btn-secondary:hover{background:#2d3748;color:#e2e8f0}
+.btn-danger{background:#991b1b;color:#fca5a5}.btn-danger:hover{background:#7f1d1d}
+.btn-success{background:#166534;color:#86efac}.btn-success:hover{background:#14532d}
+.btn-sm{padding:5px 10px;font-size:.8rem;border-radius:6px}
+.btn-icon{background:transparent;color:#64748b;padding:6px;border-radius:6px;transition:.15s}.btn-icon:hover{background:#1e2535;color:#e2e8f0}
+
+/* Media grid */
+.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.media-card{background:#1e2535;border-radius:8px;overflow:hidden;border:1px solid #2d3748;transition:.15s;cursor:pointer;position:relative}
+.media-card:hover{border-color:#3b82f6}
+.media-card.selected{border-color:#3b82f6;box-shadow:0 0 0 2px #3b82f680}
+.media-thumb{width:100%;aspect-ratio:16/9;background:#0f1117;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.media-thumb img{width:100%;height:100%;object-fit:cover}
+.media-thumb .icon-placeholder{font-size:2rem;color:#334155}
+.media-info{padding:8px 10px}
+.media-name{font-size:.78rem;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.media-meta{font-size:.7rem;color:#64748b;margin-top:2px}
+.media-actions{position:absolute;top:6px;right:6px;display:none;gap:4px}
+.media-card:hover .media-actions{display:flex}
+
+/* Drop zone */
+#dropzone{border:2px dashed #2d3748;border-radius:10px;padding:40px;text-align:center;color:#64748b;transition:.15s;cursor:pointer;margin-bottom:20px}
+#dropzone:hover,#dropzone.drag-over{border-color:#3b82f6;color:#93c5fd;background:#1e2d4a20}
+#dropzone svg{margin:0 auto 10px;display:block;color:#334155}
+
+/* Playlist items */
+.pl-item{display:flex;align-items:center;gap:12px;background:#1a2033;border:1px solid #1e2535;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:grab;transition:.15s}
+.pl-item:hover{border-color:#3b82f6}
+.pl-item-thumb{width:64px;height:36px;background:#0f1117;border-radius:4px;overflow:hidden;flex-shrink:0}
+.pl-item-thumb img{width:100%;height:100%;object-fit:cover}
+.pl-item-info{flex:1;min-width:0}
+.pl-item-name{font-size:.85rem;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-item-meta{font-size:.73rem;color:#64748b;margin-top:2px}
+.pl-item-duration{width:60px}
+.pl-item-duration input{width:100%;background:#0f1117;border:1px solid #2d3748;color:#e2e8f0;border-radius:6px;padding:4px 6px;font-size:.8rem;text-align:center}
+.drag-handle{color:#334155;cursor:grab}
+
+/* Schedule */
+.sch-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:center;background:#1a2033;border:1px solid #1e2535;border-radius:8px;padding:10px 14px;margin-bottom:8px}
+
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:600}
+.badge-image{background:#1e3a5f;color:#93c5fd}
+.badge-video{background:#3b1f5e;color:#c4b5fd}
+.badge-widget{background:#1a3a2a;color:#86efac}
+
+/* Toggle */
+.toggle{position:relative;display:inline-block;width:36px;height:20px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#2d3748;border-radius:10px;cursor:pointer;transition:.2s}
+.toggle-slider::before{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;background:#94a3b8;border-radius:50%;transition:.2s}
+.toggle input:checked+.toggle-slider{background:#2563eb}
+.toggle input:checked+.toggle-slider::before{transform:translateX(16px);background:#fff}
+
+/* Player controls bar */
+#player-bar{display:flex;align-items:center;gap:12px;background:#161b27;border-top:1px solid #1e2535;padding:12px 24px;position:fixed;bottom:0;left:220px;right:0}
+#player-bar .playlist-name{color:#60a5fa;font-size:.875rem;font-weight:600;min-width:120px}
+#brightness-slider,#volume-slider{-webkit-appearance:none;appearance:none;width:100px;height:4px;border-radius:2px;background:#2d3748;outline:none;cursor:pointer}
+#brightness-slider::-webkit-slider-thumb,#volume-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#3b82f6;cursor:pointer}
+.bar-label{font-size:.75rem;color:#64748b}
+
+/* Day selector */
+.day-btn{width:30px;height:30px;border-radius:50%;background:#1e2535;color:#64748b;font-size:.75rem;border:1px solid #2d3748;cursor:pointer;transition:.15s}
+.day-btn.active{background:#1e3a5f;color:#60a5fa;border-color:#3b82f6}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:#00000088;z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#161b27;border:1px solid #1e2535;border-radius:12px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:24px}
+.modal-title{font-size:1rem;font-weight:700;color:#f1f5f9;margin-bottom:16px}
+.form-row{margin-bottom:14px}
+.form-label{display:block;font-size:.8rem;color:#94a3b8;margin-bottom:5px}
+.form-input{width:100%;background:#0f1117;border:1px solid #2d3748;color:#e2e8f0;border-radius:8px;padding:8px 12px;font-size:.875rem;transition:.15s}
+.form-input:focus{border-color:#3b82f6}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* Upload progress */
+#upload-progress{display:none;margin-top:12px}
+.progress-bar{height:6px;background:#1e2535;border-radius:3px;overflow:hidden;margin-top:4px}
+.progress-fill{height:100%;background:#3b82f6;border-radius:3px;width:0;transition:width .2s}
+
+/* Toasts */
+#toast-container{position:fixed;bottom:80px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:200}
+.toast{background:#1e2535;border:1px solid #2d3748;border-radius:8px;padding:10px 16px;font-size:.85rem;color:#e2e8f0;animation:slideIn .2s ease;max-width:280px}
+.toast.success{border-color:#166534;color:#86efac}
+.toast.error{border-color:#991b1b;color:#fca5a5}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#0f1117}
+::-webkit-scrollbar-thumb{background:#2d3748;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#475569}
+
+/* Responsive */
+@media(max-width:640px){
+  #sidebar{width:56px}
+  .brand,.nav-label,.sidebar-footer{display:none}
+  nav a{justify-content:center;padding:12px}
+  .page{padding:16px}
+  #player-bar{left:56px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<aside id="sidebar">
+  <div class="brand">
+    LedscreenPlayer
+    <span>Linsn SB-8 / Raspberry Pi</span>
+  </div>
+  <nav>
+    <a href="#" class="nav-link active" data-page="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-link" data-page="media">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M10 9l5 3-5 3V9z"/></svg>
+      <span class="nav-label">Media Library</span>
+    </a>
+    <a href="#" class="nav-link" data-page="playlists">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="18" r="1"/></svg>
+      <span class="nav-label">Playlists</span>
+    </a>
+    <a href="#" class="nav-link" data-page="schedule">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="nav-label">Schedule</span>
+    </a>
+    <a href="#" class="nav-link" data-page="widgets">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <span class="nav-label">Widgets</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <span id="status-dot"></span>
+    <span id="status-text">Connecting…</span>
+  </div>
+</aside>
+
+<!-- ── Main ────────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Dashboard -->
+  <section class="page active" id="page-dashboard">
+    <div class="page-title">Dashboard</div>
+    <div class="page-sub">System overview and quick controls</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val" id="stat-media">–</div><div class="stat-lbl">Media files</div></div>
+      <div class="stat"><div class="stat-val" id="stat-playlists">–</div><div class="stat-lbl">Playlists</div></div>
+      <div class="stat"><div class="stat-val" id="stat-schedules">–</div><div class="stat-lbl">Schedules</div></div>
+      <div class="stat"><div class="stat-val" id="stat-viewers">0</div><div class="stat-lbl">Player screens</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Now Playing</div>
+      <div id="now-playing" style="color:#94a3b8;font-size:.9rem">Loading…</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Quick Actions</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="App.openPlayerWindow()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Open Player
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="App.playerCmd('next')">⏭ Next</button>
+        <button class="btn btn-secondary btn-sm" onclick="App.playerCmd('prev')">⏮ Prev</button>
+        <button class="btn btn-secondary btn-sm" id="btn-pause" onclick="App.togglePause()">⏸ Pause</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Media Library -->
+  <section class="page" id="page-media">
+    <div class="page-title">Media Library</div>
+    <div class="page-sub">Upload images, videos, and animated GIFs</div>
+
+    <div id="dropzone">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div style="font-size:.95rem;margin-bottom:6px">Drag &amp; drop files here or click to browse</div>
+      <div style="font-size:.78rem">Supports: JPG, PNG, GIF, WebP, MP4, WebM, MOV</div>
+      <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none">
+    </div>
+    <div id="upload-progress">
+      <div style="font-size:.8rem;color:#94a3b8" id="upload-status">Uploading…</div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:.85rem;color:#64748b"><span id="media-count">0</span> files</div>
+      <div style="display:flex;gap:8px">
+        <input id="media-search" class="form-input" style="width:180px;padding:6px 10px;font-size:.8rem" placeholder="Search…">
+        <select id="media-filter" class="form-input form-select" style="width:120px;padding:6px 10px;font-size:.8rem">
+          <option value="">All types</option>
+          <option value="image">Images</option>
+          <option value="video">Videos</option>
+          <option value="widget">Widgets</option>
+        </select>
+      </div>
+    </div>
+    <div class="media-grid" id="media-grid">
+      <div style="color:#475569;font-size:.875rem;grid-column:1/-1">Loading…</div>
+    </div>
+  </section>
+
+  <!-- Playlists -->
+  <section class="page" id="page-playlists">
+    <div class="page-title">Playlists</div>
+    <div class="page-sub">Build and organise your content sequences</div>
+
+    <div style="display:flex;gap:10px;margin-bottom:20px;align-items:flex-start">
+      <div id="playlist-list" style="width:220px;flex-shrink:0"></div>
+      <div id="playlist-editor" style="flex:1"></div>
+    </div>
+  </section>
+
+  <!-- Schedule -->
+  <section class="page" id="page-schedule">
+    <div class="page-title">Schedule</div>
+    <div class="page-sub">Define when each playlist should play</div>
+    <button class="btn btn-primary btn-sm" onclick="Schedules.openModal()" style="margin-bottom:16px">+ Add schedule</button>
+    <div id="schedule-list"></div>
+  </section>
+
+  <!-- Widgets -->
+  <section class="page" id="page-widgets">
+    <div class="page-title">Widgets</div>
+    <div class="page-sub">Add live data overlays: clock, weather, text ticker</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+      <div class="card" style="cursor:pointer;transition:.15s;border-color:transparent" onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='transparent'" onclick="Widgets.create('clock')">
+        <div style="font-size:2rem;margin-bottom:8px">🕐</div>
+        <div style="font-weight:600;margin-bottom:4px">Digital Clock</div>
+        <div style="font-size:.8rem;color:#64748b">Large time display with optional date</div>
+      </div>
+      <div class="card" style="cursor:pointer;transition:.15s;border-color:transparent" onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='transparent'" onclick="Widgets.create('weather')">
+        <div style="font-size:2rem;margin-bottom:8px">🌤</div>
+        <div style="font-weight:600;margin-bottom:4px">Weather</div>
+        <div style="font-size:.8rem;color:#64748b">Current conditions via OpenWeatherMap</div>
+      </div>
+      <div class="card" style="cursor:pointer;transition:.15s;border-color:transparent" onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='transparent'" onclick="Widgets.create('text')">
+        <div style="font-size:2rem;margin-bottom:8px">📝</div>
+        <div style="font-weight:600;margin-bottom:4px">Text / Ticker</div>
+        <div style="font-size:.8rem;color:#64748b">Scrolling or static custom message</div>
+      </div>
+      <div class="card" style="cursor:pointer;transition:.15s;border-color:transparent" onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='transparent'" onclick="Widgets.create('rss')">
+        <div style="font-size:2rem;margin-bottom:8px">📡</div>
+        <div style="font-weight:600;margin-bottom:4px">RSS Feed</div>
+        <div style="font-size:.8rem;color:#64748b">Live news headlines from any RSS feed</div>
+      </div>
+    </div>
+    <div style="margin-top:24px">
+      <div style="font-size:.85rem;color:#64748b;margin-bottom:12px">Existing widgets</div>
+      <div class="media-grid" id="widget-grid"></div>
+    </div>
+  </section>
+
+</main><!-- /#main -->
+</div><!-- /#app -->
+
+<!-- Player controls bar -->
+<div id="player-bar">
+  <div style="color:#64748b;font-size:.75rem">PLAYING</div>
+  <div class="playlist-name" id="bar-playlist">—</div>
+  <button class="btn btn-icon" onclick="App.playerCmd('prev')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+  </button>
+  <button class="btn btn-icon" id="bar-pause" onclick="App.togglePause()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+  </button>
+  <button class="btn btn-icon" onclick="App.playerCmd('next')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+  </button>
+  <div style="flex:1"></div>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#64748b"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+  <span class="bar-label">Brightness</span>
+  <input type="range" id="brightness-slider" min="0" max="100" value="100" oninput="App.setBrightness(this.value)">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#64748b"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+  <span class="bar-label">Volume</span>
+  <input type="range" id="volume-slider" min="0" max="100" value="50" oninput="App.setVolume(this.value)">
+  <button class="btn btn-secondary btn-sm" onclick="App.openPlayerWindow()">📺 Player</button>
+</div>
+
+<!-- ── Modal ───────────────────────────────────────────────── -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const API = {
+  async get(url){ const r=await fetch(url); if(!r.ok) throw await r.json(); return r.json(); },
+  async post(url,body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok) throw await r.json(); return r.json(); },
+  async patch(url,body){ const r=await fetch(url,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok) throw await r.json(); return r.json(); },
+  async delete(url){ const r=await fetch(url,{method:'DELETE'}); if(!r.ok) throw await r.json(); return r.json(); },
+};
+
+function toast(msg, type=''){
+  const d=document.createElement('div');
+  d.className=`toast ${type}`;
+  d.textContent=msg;
+  document.getElementById('toast-container').appendChild(d);
+  setTimeout(()=>d.remove(),3500);
+}
+
+function openModal(html){
+  document.getElementById('modal-content').innerHTML=html;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal-bg').classList.remove('open');
+}
+document.getElementById('modal-bg').addEventListener('click',e=>{
+  if(e.target===document.getElementById('modal-bg')) closeModal();
+});
+
+function fmtBytes(b){if(!b)return'0B';const k=1024,s=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(k));return`${(b/k**i).toFixed(1)}${s[i]}`;}
+function fmtType(t){return{image:'Image',video:'Video',widget:'Widget'}[t]||t;}
+
+// ── Navigation ─────────────────────────────────────────────────────────────────
+const pages={};
+document.querySelectorAll('.page').forEach(p=>pages[p.id.replace('page-','')]=p);
+document.querySelectorAll('.nav-link').forEach(a=>{
+  a.addEventListener('click',e=>{
+    e.preventDefault();
+    const page=a.dataset.page;
+    document.querySelectorAll('.nav-link').forEach(x=>x.classList.remove('active'));
+    a.classList.add('active');
+    Object.values(pages).forEach(p=>p.classList.remove('active'));
+    if(pages[page]){
+      pages[page].classList.add('active');
+      if(page==='media') MediaLib.load();
+      if(page==='playlists') Playlists.load();
+      if(page==='schedule') Schedules.load();
+      if(page==='widgets') Widgets.load();
+    }
+  });
+});
+
+// ── App / WebSocket ────────────────────────────────────────────────────────────
+const App = {
+  state: null,
+  ws: null,
+  viewers: 0,
+
+  init(){
+    this.connectWS();
+    this.loadStats();
+    setInterval(()=>this.loadStats(),30000);
+  },
+
+  connectWS(){
+    const proto = location.protocol==='https:'?'wss:':'ws:';
+    this.ws = new WebSocket(`${proto}//${location.host}/api/player/ws`);
+    this.ws.onopen=()=>{
+      document.getElementById('status-dot').classList.add('online');
+      document.getElementById('status-text').textContent='Connected';
+      this.pingInterval = setInterval(()=>this.ws.readyState===1&&this.ws.send('ping'),10000);
+    };
+    this.ws.onmessage=e=>{
+      const msg=JSON.parse(e.data);
+      if(msg.type==='player_update') this.applyState(msg);
+    };
+    this.ws.onclose=()=>{
+      document.getElementById('status-dot').classList.remove('online');
+      document.getElementById('status-text').textContent='Disconnected';
+      clearInterval(this.pingInterval);
+      setTimeout(()=>this.connectWS(),3000);
+    };
+    this.ws.onerror=()=>this.ws.close();
+  },
+
+  applyState({state,playlist}){
+    this.state=state;
+    const name = playlist?.name||'—';
+    document.getElementById('bar-playlist').textContent=name;
+    document.getElementById('now-playing').innerHTML=
+      playlist ? `<strong style="color:#e2e8f0">${name}</strong> &nbsp;·&nbsp; ${playlist.item_count} items`
+               : '<span style="color:#475569">No playlist active</span>';
+    document.getElementById('brightness-slider').value=state.brightness||100;
+    document.getElementById('volume-slider').value=state.volume||50;
+    const paused=state.is_paused;
+    document.getElementById('bar-pause').innerHTML=paused
+      ?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+      :'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+  },
+
+  async loadStats(){
+    try{
+      const [media,pls,schs]=await Promise.all([
+        API.get('/api/media'),API.get('/api/playlists'),API.get('/api/schedules')
+      ]);
+      document.getElementById('stat-media').textContent=media.length;
+      document.getElementById('stat-playlists').textContent=pls.length;
+      document.getElementById('stat-schedules').textContent=schs.length;
+    }catch(e){}
+  },
+
+  openPlayerWindow(){ window.open('/player','_blank'); },
+
+  async playerCmd(cmd){
+    await fetch(`/api/player/${cmd}`,{method:'POST'});
+  },
+
+  async togglePause(){
+    if(!this.state) return;
+    await API.patch('/api/player/state',{is_paused:!this.state.is_paused});
+  },
+
+  async setBrightness(v){
+    await API.patch('/api/player/state',{brightness:parseInt(v)});
+  },
+  async setVolume(v){
+    await API.patch('/api/player/state',{volume:parseInt(v)});
+  },
+};
+
+// ── Media Library ─────────────────────────────────────────────────────────────
+const MediaLib = {
+  items: [],
+  async load(){
+    this.items = await API.get('/api/media');
+    this.render();
+  },
+  render(){
+    const search = document.getElementById('media-search').value.toLowerCase();
+    const filter = document.getElementById('media-filter').value;
+    const items = this.items.filter(m=>{
+      const matchName=m.original_name.toLowerCase().includes(search);
+      const matchType=!filter||m.media_type===filter;
+      return matchName&&matchType;
+    });
+    document.getElementById('media-count').textContent=items.length;
+    const grid=document.getElementById('media-grid');
+    if(!items.length){grid.innerHTML='<div style="color:#475569;font-size:.875rem;grid-column:1/-1">No media files yet. Upload something!</div>';return;}
+    grid.innerHTML=items.map(m=>`
+      <div class="media-card" data-id="${m.id}">
+        <div class="media-thumb">
+          ${m.thumbnail?`<img src="${m.thumbnail}" alt="">`
+            :m.media_type==='video'?'<div class="icon-placeholder">▶</div>'
+            :m.media_type==='widget'?'<div class="icon-placeholder">⚙</div>'
+            :'<div class="icon-placeholder">🖼</div>'}
+        </div>
+        <div class="media-info">
+          <div class="media-name" title="${m.original_name}">${m.original_name}</div>
+          <div class="media-meta">${fmtType(m.media_type)} · ${fmtBytes(m.size_bytes)}</div>
+        </div>
+        <div class="media-actions">
+          <button class="btn btn-icon btn-sm" title="Delete" onclick="MediaLib.delete(${m.id})">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  },
+  async delete(id){
+    if(!confirm('Delete this media file?')) return;
+    try{
+      await API.delete(`/api/media/${id}`);
+      this.items=this.items.filter(m=>m.id!==id);
+      this.render();
+      toast('Deleted','success');
+      App.loadStats();
+    }catch(e){toast('Delete failed','error');}
+  },
+};
+
+// Filter/search handlers
+document.getElementById('media-search').oninput=()=>MediaLib.render();
+document.getElementById('media-filter').onchange=()=>MediaLib.render();
+
+// Upload
+const dropzone=document.getElementById('dropzone');
+const fileInput=document.getElementById('file-input');
+dropzone.onclick=()=>fileInput.click();
+dropzone.ondragover=e=>{e.preventDefault();dropzone.classList.add('drag-over');};
+dropzone.ondragleave=()=>dropzone.classList.remove('drag-over');
+dropzone.ondrop=e=>{e.preventDefault();dropzone.classList.remove('drag-over');MediaLib.uploadFiles(e.dataTransfer.files);};
+fileInput.onchange=e=>MediaLib.uploadFiles(e.target.files);
+
+MediaLib.uploadFiles=async function(files){
+  if(!files.length) return;
+  const prog=document.getElementById('upload-progress');
+  const fill=document.getElementById('progress-fill');
+  const status=document.getElementById('upload-status');
+  prog.style.display='block';
+  let done=0;
+  for(const file of files){
+    status.textContent=`Uploading ${file.name}…`;
+    const fd=new FormData();
+    fd.append('file',file);
+    try{
+      const r=await fetch('/api/media',{method:'POST',body:fd});
+      if(!r.ok) throw new Error();
+      const m=await r.json();
+      this.items.unshift(m);
+      done++;
+      fill.style.width=`${(done/files.length)*100}%`;
+    }catch(e){toast(`Failed: ${file.name}`,'error');}
+  }
+  prog.style.display='none';
+  fill.style.width='0';
+  this.render();
+  App.loadStats();
+  toast(`Uploaded ${done} file(s)`,'success');
+};
+
+// ── Playlists ──────────────────────────────────────────────────────────────────
+const Playlists = {
+  list: [],
+  selected: null,
+  mediaItems: [],
+
+  async load(){
+    this.list = await API.get('/api/playlists');
+    this.mediaItems = await API.get('/api/media');
+    this.renderList();
+    if(this.list.length) this.select(this.list[0].id);
+    else this.renderEditor(null);
+  },
+
+  renderList(){
+    const el=document.getElementById('playlist-list');
+    el.innerHTML=`
+      <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:10px" onclick="Playlists.createModal()">+ New playlist</button>
+      ${this.list.map(pl=>`
+        <div class="pl-list-item" style="padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid ${this.selected===pl.id?'#3b82f6':'#1e2535'};background:${this.selected===pl.id?'#1e2d4a':'#161b27'};margin-bottom:6px;font-size:.85rem;display:flex;align-items:center;justify-content:space-between"
+          onclick="Playlists.select(${pl.id})">
+          <div>
+            <div style="color:${this.selected===pl.id?'#60a5fa':'#e2e8f0'}">${pl.name}</div>
+            <div style="font-size:.72rem;color:#64748b">${pl.item_count} items</div>
+          </div>
+          ${pl.is_default?'<span style="font-size:.65rem;background:#1e3a5f;color:#60a5fa;padding:2px 6px;border-radius:999px">DEFAULT</span>':''}
+        </div>
+      `).join('')}
+    `;
+  },
+
+  async select(id){
+    this.selected=id;
+    this.renderList();
+    const pl=await API.get(`/api/playlists/${id}`);
+    this.renderEditor(pl);
+  },
+
+  renderEditor(pl){
+    const el=document.getElementById('playlist-editor');
+    if(!pl){el.innerHTML='<div style="color:#475569;font-size:.875rem">Select or create a playlist</div>';return;}
+    el.innerHTML=`
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <input id="pl-name" class="form-input" style="font-size:1rem;font-weight:600;width:240px" value="${pl.name}">
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-success btn-sm" onclick="Playlists.setActive(${pl.id})">▶ Set Active</button>
+            <button class="btn btn-secondary btn-sm" onclick="Playlists.saveName(${pl.id})">Save</button>
+            ${!pl.is_default?`<button class="btn btn-danger btn-sm" onclick="Playlists.delete(${pl.id})">Delete</button>`:''}
+          </div>
+        </div>
+        <div id="pl-items">${this.renderItems(pl.items)}</div>
+        <div style="margin-top:14px">
+          <div class="card-title">Add media to playlist</div>
+          <div class="media-grid" id="pl-media-pick" style="max-height:240px;overflow-y:auto">
+            ${this.mediaItems.filter(m=>m.media_type!=='widget').map(m=>`
+              <div class="media-card" onclick="Playlists.addItem(${pl.id},${m.id})" style="cursor:pointer">
+                <div class="media-thumb">
+                  ${m.thumbnail?`<img src="${m.thumbnail}">`:'<div class="icon-placeholder">${m.media_type==="video"?"▶":"🖼"}</div>'}
+                </div>
+                <div class="media-info">
+                  <div class="media-name">${m.original_name}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  renderItems(items){
+    if(!items.length) return '<div style="color:#475569;font-size:.8rem;padding:8px 0">No items yet — click media below to add</div>';
+    return items.map((item,i)=>`
+      <div class="pl-item" id="plitem-${item.id}">
+        <div class="drag-handle">⠿</div>
+        <div class="pl-item-thumb">
+          ${item.media?.thumbnail?`<img src="${item.media.thumbnail}">`:'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#334155">${item.media?.media_type==="video"?"▶":"🖼"}</div>'}
+        </div>
+        <div class="pl-item-info">
+          <div class="pl-item-name">${item.media?.original_name||'Unknown'}</div>
+          <div class="pl-item-meta">${fmtType(item.media?.media_type||'')} · ${item.transition}</div>
+        </div>
+        <div class="pl-item-duration">
+          <input type="number" min="1" max="3600" value="${item.duration}"
+            onchange="Playlists.updateItemDuration(${item.playlist_id},${item.id},this.value)" title="Duration (s)">
+        </div>
+        <select class="form-input form-select" style="width:80px;padding:4px 6px;font-size:.75rem"
+          onchange="Playlists.updateItemTransition(${item.playlist_id},${item.id},this.value)">
+          ${['fade','slide','none'].map(t=>`<option value="${t}"${t===item.transition?' selected':''}>${t}</option>`).join('')}
+        </select>
+        <button class="btn btn-icon btn-sm" onclick="Playlists.removeItem(${item.playlist_id},${item.id})">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    `).join('');
+  },
+
+  createModal(){
+    openModal(`
+      <div class="modal-title">New Playlist</div>
+      <div class="form-row">
+        <label class="form-label">Name</label>
+        <input id="new-pl-name" class="form-input" placeholder="My Playlist">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Description</label>
+        <input id="new-pl-desc" class="form-input" placeholder="Optional description">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="Playlists.create()">Create</button>
+      </div>
+    `);
+  },
+
+  async create(){
+    const name=document.getElementById('new-pl-name').value.trim();
+    if(!name){toast('Name required','error');return;}
+    try{
+      const pl=await API.post('/api/playlists',{name,description:document.getElementById('new-pl-desc').value});
+      this.list.push(pl);
+      this.renderList();
+      this.select(pl.id);
+      closeModal();
+      toast('Playlist created','success');
+      App.loadStats();
+    }catch(e){toast('Error creating playlist','error');}
+  },
+
+  async saveName(id){
+    const name=document.getElementById('pl-name').value.trim();
+    if(!name) return;
+    await API.patch(`/api/playlists/${id}`,{name});
+    const idx=this.list.findIndex(p=>p.id===id);
+    if(idx>=0) this.list[idx].name=name;
+    this.renderList();
+    toast('Saved','success');
+  },
+
+  async setActive(id){
+    await API.patch('/api/player/state',{active_playlist_id:id});
+    toast('Playlist activated','success');
+  },
+
+  async delete(id){
+    if(!confirm('Delete this playlist?')) return;
+    await API.delete(`/api/playlists/${id}`);
+    this.list=this.list.filter(p=>p.id!==id);
+    this.selected=null;
+    this.renderList();
+    this.renderEditor(null);
+    toast('Deleted','success');
+    App.loadStats();
+  },
+
+  async addItem(playlistId,mediaId){
+    try{
+      await API.post(`/api/playlists/${playlistId}/items`,{media_id:mediaId,duration:10,transition:'fade'});
+      this.select(playlistId);
+      toast('Added to playlist','success');
+    }catch(e){toast('Error adding item','error');}
+  },
+
+  async removeItem(playlistId,itemId){
+    await API.delete(`/api/playlists/${playlistId}/items/${itemId}`);
+    this.select(playlistId);
+    toast('Removed','success');
+  },
+
+  async updateItemDuration(playlistId,itemId,dur){
+    await API.patch(`/api/playlists/${playlistId}/items/${itemId}`,{duration:parseInt(dur)});
+  },
+
+  async updateItemTransition(playlistId,itemId,transition){
+    await API.patch(`/api/playlists/${playlistId}/items/${itemId}`,{transition});
+  },
+};
+
+// ── Schedules ──────────────────────────────────────────────────────────────────
+const Schedules = {
+  list: [],
+  playlists: [],
+  DAY_NAMES: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+
+  async load(){
+    [this.list, this.playlists] = await Promise.all([API.get('/api/schedules'), API.get('/api/playlists')]);
+    this.render();
+  },
+
+  render(){
+    const el=document.getElementById('schedule-list');
+    if(!this.list.length){
+      el.innerHTML='<div style="color:#475569;font-size:.875rem">No schedules yet. Create one to auto-switch playlists by time.</div>';
+      return;
+    }
+    el.innerHTML=this.list.map(s=>`
+      <div class="sch-row">
+        <div>
+          <div style="font-size:.875rem;color:#e2e8f0;font-weight:600">${s.name}</div>
+          <div style="font-size:.75rem;color:#64748b">${s.playlist_name}</div>
+        </div>
+        <div style="font-size:.875rem;color:#93c5fd">${s.start_time} – ${s.end_time}</div>
+        <div style="display:flex;gap:4px">
+          ${this.DAY_NAMES.map((d,i)=>`<span style="width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;${s.days.includes(i)?'background:#1e3a5f;color:#60a5fa':'background:#1e2535;color:#475569'}">${d[0]}</span>`).join('')}
+        </div>
+        <div>
+          <label class="toggle">
+            <input type="checkbox" ${s.is_active?'checked':''} onchange="Schedules.toggle(${s.id},this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-icon btn-sm" onclick="Schedules.delete(${s.id})">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+    `).join('');
+  },
+
+  openModal(){
+    openModal(`
+      <div class="modal-title">New Schedule</div>
+      <div class="form-row">
+        <label class="form-label">Name</label>
+        <input id="sch-name" class="form-input" placeholder="Morning show">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Playlist</label>
+        <select id="sch-playlist" class="form-input form-select">
+          ${this.playlists.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row">
+          <label class="form-label">Start time</label>
+          <input id="sch-start" type="time" class="form-input" value="08:00">
+        </div>
+        <div class="form-row">
+          <label class="form-label">End time</label>
+          <input id="sch-end" type="time" class="form-input" value="18:00">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Days</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="sch-days">
+          ${this.DAY_NAMES.map((d,i)=>`
+            <button class="day-btn active" data-day="${i}" onclick="this.classList.toggle('active')">${d}</button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="Schedules.create()">Create</button>
+      </div>
+    `);
+  },
+
+  async create(){
+    const days=[...document.querySelectorAll('#sch-days .day-btn.active')].map(b=>parseInt(b.dataset.day));
+    const body={
+      name: document.getElementById('sch-name').value.trim(),
+      playlist_id: parseInt(document.getElementById('sch-playlist').value),
+      start_time: document.getElementById('sch-start').value,
+      end_time: document.getElementById('sch-end').value,
+      days,
+    };
+    if(!body.name){toast('Name required','error');return;}
+    try{
+      const s=await API.post('/api/schedules',body);
+      this.list.push(s);
+      this.render();
+      closeModal();
+      toast('Schedule created','success');
+      App.loadStats();
+    }catch(e){toast('Error','error');}
+  },
+
+  async toggle(id,active){
+    await API.patch(`/api/schedules/${id}`,{is_active:active});
+    const s=this.list.find(x=>x.id===id);
+    if(s) s.is_active=active;
+  },
+
+  async delete(id){
+    if(!confirm('Delete this schedule?')) return;
+    await API.delete(`/api/schedules/${id}`);
+    this.list=this.list.filter(s=>s.id!==id);
+    this.render();
+    toast('Deleted','success');
+    App.loadStats();
+  },
+};
+
+// ── Widgets ───────────────────────────────────────────────────────────────────
+const Widgets = {
+  async load(){
+    const all = await API.get('/api/media');
+    const widgets = all.filter(m=>m.media_type==='widget');
+    const grid=document.getElementById('widget-grid');
+    if(!widgets.length){grid.innerHTML='<div style="color:#475569;font-size:.875rem">No widgets yet</div>';return;}
+    grid.innerHTML=widgets.map(m=>`
+      <div class="media-card">
+        <div class="media-thumb"><div class="icon-placeholder">⚙</div></div>
+        <div class="media-info">
+          <div class="media-name">${m.original_name}</div>
+          <div class="media-meta">${m.widget_config?.type||'widget'}</div>
+        </div>
+        <div class="media-actions">
+          <button class="btn btn-icon btn-sm" onclick="MediaLib.delete(${m.id});Widgets.load()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  create(type){
+    const configs = {
+      clock: `
+        <div class="form-row"><label class="form-label">Widget name</label><input id="w-name" class="form-input" value="Digital Clock"></div>
+        <div class="form-row"><label class="form-label">Time zone</label><input id="w-tz" class="form-input" placeholder="Europe/Helsinki"></div>
+        <div class="form-row"><label class="form-label">Show date</label><label class="toggle"><input type="checkbox" id="w-date" checked><span class="toggle-slider"></span></label></div>
+      `,
+      weather: `
+        <div class="form-row"><label class="form-label">Widget name</label><input id="w-name" class="form-input" value="Weather"></div>
+        <div class="form-row"><label class="form-label">City name</label><input id="w-city" class="form-input" placeholder="Helsinki"></div>
+        <div class="form-row"><label class="form-label">OpenWeatherMap API key</label><input id="w-key" class="form-input" placeholder="your_api_key"></div>
+        <div class="form-row"><label class="form-label">Units</label><select id="w-units" class="form-input form-select"><option value="metric">Celsius (metric)</option><option value="imperial">Fahrenheit</option></select></div>
+      `,
+      text: `
+        <div class="form-row"><label class="form-label">Widget name</label><input id="w-name" class="form-input" value="Text Ticker"></div>
+        <div class="form-row"><label class="form-label">Message</label><textarea id="w-text" class="form-input" rows="3" placeholder="Your message here…"></textarea></div>
+        <div class="form-row"><label class="form-label">Scroll speed</label><input id="w-speed" type="range" min="1" max="10" value="5" style="width:100%"></div>
+      `,
+      rss: `
+        <div class="form-row"><label class="form-label">Widget name</label><input id="w-name" class="form-input" value="RSS Feed"></div>
+        <div class="form-row"><label class="form-label">RSS feed URL</label><input id="w-rss" class="form-input" placeholder="https://example.com/feed.rss"></div>
+      `,
+    };
+    openModal(`
+      <div class="modal-title">Create ${type.charAt(0).toUpperCase()+type.slice(1)} Widget</div>
+      ${configs[type]||''}
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="Widgets.save('${type}')">Create</button>
+      </div>
+    `);
+  },
+
+  async save(type){
+    const name=document.getElementById('w-name')?.value.trim()||type;
+    let config={};
+    if(type==='clock') config={timezone:document.getElementById('w-tz').value,show_date:document.getElementById('w-date').checked};
+    if(type==='weather') config={city:document.getElementById('w-city').value,api_key:document.getElementById('w-key').value,units:document.getElementById('w-units').value};
+    if(type==='text') config={text:document.getElementById('w-text').value,speed:document.getElementById('w-speed').value};
+    if(type==='rss') config={url:document.getElementById('w-rss').value};
+    const fd=new FormData();
+    fd.append('name',name);fd.append('widget_type',type);fd.append('config',JSON.stringify(config));
+    await fetch('/api/media/widget',{method:'POST',body:fd});
+    closeModal();
+    toast('Widget created','success');
+    this.load();
+    App.loadStats();
+  },
+};
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+App.init();
+MediaLib.load();
+</script>
+</body>
+</html>

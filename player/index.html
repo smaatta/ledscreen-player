@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LedscreenPlayer</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:none}
+
+/* Slides container */
+#player{position:relative;width:100vw;height:100vh;background:#000;overflow:hidden}
+
+/* Individual slide */
+.slide{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .6s ease;
+  pointer-events:none;
+}
+.slide.active{opacity:1;pointer-events:auto;}
+.slide.fade-out{opacity:0;}
+
+/* Image slide */
+.slide img{
+  max-width:100%;max-height:100%;
+  width:100%;height:100%;
+  object-fit:contain;
+}
+
+/* Video slide */
+.slide video{
+  width:100%;height:100%;
+  object-fit:contain;
+}
+
+/* Widget base */
+.widget{
+  width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  background:#000;color:#fff;
+  font-family:'Segoe UI',system-ui,sans-serif;
+}
+
+/* ── Clock widget ── */
+.widget-clock{
+  flex-direction:column;
+  text-align:center;
+}
+.clock-time{
+  font-size:clamp(80px,18vw,260px);
+  font-weight:200;
+  letter-spacing:.05em;
+  color:#fff;
+  font-variant-numeric:tabular-nums;
+  line-height:1;
+  text-shadow:0 0 80px rgba(255,255,255,.15);
+}
+.clock-date{
+  font-size:clamp(22px,4vw,72px);
+  color:#94a3b8;
+  margin-top:.3em;
+  letter-spacing:.08em;
+  font-weight:300;
+}
+
+/* ── Weather widget ── */
+.widget-weather{
+  flex-direction:column;
+  text-align:center;
+  gap:16px;
+}
+.weather-icon{font-size:clamp(60px,12vw,180px);line-height:1}
+.weather-temp{font-size:clamp(56px,12vw,160px);font-weight:200;line-height:1}
+.weather-desc{font-size:clamp(20px,3.5vw,60px);color:#94a3b8;text-transform:capitalize}
+.weather-city{font-size:clamp(14px,2.5vw,40px);color:#64748b;margin-top:.2em}
+
+/* ── Text ticker widget ── */
+.widget-text{
+  overflow:hidden;
+  padding:0 10%;
+}
+.ticker-wrap{width:100%;overflow:hidden;}
+.ticker-inner{
+  display:flex;align-items:center;
+  white-space:nowrap;
+  font-size:clamp(32px,7vw,120px);
+  font-weight:300;
+  color:#fff;
+  animation:ticker 20s linear infinite;
+}
+.ticker-inner.static{
+  animation:none;
+  white-space:normal;
+  text-align:center;
+  word-break:break-word;
+}
+@keyframes ticker{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+/* ── RSS widget ── */
+.widget-rss{
+  flex-direction:column;
+  padding:5%;
+  text-align:center;
+  gap:20px;
+}
+.rss-source{font-size:clamp(14px,2.5vw,36px);color:#3b82f6;letter-spacing:.1em;text-transform:uppercase}
+.rss-headline{
+  font-size:clamp(28px,5.5vw,90px);
+  font-weight:300;
+  line-height:1.2;
+  max-width:80%;
+}
+.rss-pub{font-size:clamp(12px,2vw,30px);color:#64748b;margin-top:.5em}
+
+/* Progress bar */
+#progress{
+  position:fixed;bottom:0;left:0;height:3px;
+  background:rgba(59,130,246,.6);
+  width:0;transition:width linear;
+  z-index:10;
+}
+
+/* Paused overlay */
+#paused-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.7);
+  align-items:center;justify-content:center;
+  font-size:clamp(40px,8vw,120px);
+  color:#ffffff44;
+  z-index:20;
+  font-weight:200;
+  letter-spacing:.1em;
+}
+#paused-overlay.show{display:flex;}
+
+/* Offline indicator */
+#offline{
+  position:fixed;top:16px;right:16px;
+  background:#7f1d1d;color:#fca5a5;
+  padding:6px 14px;border-radius:6px;
+  font-size:14px;display:none;z-index:30;
+}
+</style>
+</head>
+<body>
+<div id="player"></div>
+<div id="progress"></div>
+<div id="paused-overlay">⏸ PAUSED</div>
+<div id="offline">⚠ Reconnecting…</div>
+
+<script>
+const Player = {
+  playlist:     null,
+  items:        [],
+  index:        0,
+  timer:        null,
+  progressAnim: null,
+  paused:       false,
+  ws:           null,
+  brightness:   100,
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  init(){
+    this.connectWS();
+    // Prevent screen from sleeping (where supported)
+    this.requestWakeLock();
+  },
+
+  async requestWakeLock(){
+    try{
+      if('wakeLock' in navigator){
+        this._wakeLock = await navigator.wakeLock.request('screen');
+        document.addEventListener('visibilitychange',async()=>{
+          if(this._wakeLock&&document.visibilityState==='visible'){
+            this._wakeLock=await navigator.wakeLock.request('screen');
+          }
+        });
+      }
+    }catch(e){}
+  },
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  connectWS(){
+    const proto=location.protocol==='https:'?'wss:':'ws:';
+    this.ws=new WebSocket(`${proto}//${location.host}/api/player/ws`);
+
+    this.ws.onopen=()=>{
+      document.getElementById('offline').style.display='none';
+      this._pingInterval=setInterval(()=>this.ws.readyState===1&&this.ws.send('ping'),10000);
+    };
+    this.ws.onmessage=e=>{
+      const msg=JSON.parse(e.data);
+      if(msg.type==='player_update') this.applyUpdate(msg);
+      if(msg.type==='command'){
+        if(msg.cmd==='next') this.next(true);
+        if(msg.cmd==='prev') this.prev();
+      }
+    };
+    this.ws.onclose=()=>{
+      clearInterval(this._pingInterval);
+      document.getElementById('offline').style.display='block';
+      setTimeout(()=>this.connectWS(),3000);
+    };
+    this.ws.onerror=()=>this.ws.close();
+  },
+
+  applyUpdate({state,playlist}){
+    // Paused state
+    this.paused=state.is_paused;
+    document.getElementById('paused-overlay').classList.toggle('show',this.paused);
+    if(this.paused) this.pauseProgress();
+    else if(this.items.length) this.resumeProgress();
+
+    // Brightness (CSS filter on player container)
+    this.brightness=state.brightness||100;
+    document.getElementById('player').style.filter=`brightness(${this.brightness/100})`;
+
+    // Playlist changed?
+    const newId=playlist?.id;
+    if(newId && newId!==this.playlist?.id){
+      this.playlist=playlist;
+      this.items=playlist.items||[];
+      this.index=0;
+      this.showSlide(0);
+    } else if(!newId && this.items.length){
+      // Playlist removed — clear screen
+      this.clearSlides();
+      this.items=[];
+    }
+  },
+
+  // ── Slide management ─────────────────────────────────────────────────────
+  showSlide(idx){
+    clearTimeout(this.timer);
+    this.clearProgressAnim();
+
+    if(!this.items.length) return;
+    this.index = ((idx % this.items.length) + this.items.length) % this.items.length;
+    const item = this.items[this.index];
+
+    const container = document.getElementById('player');
+
+    // Fade out current slides
+    container.querySelectorAll('.slide.active').forEach(s=>{
+      s.classList.remove('active');
+      s.classList.add('fade-out');
+      setTimeout(()=>s.remove(),700);
+    });
+
+    const slide = this.buildSlide(item);
+    slide.style.opacity='0';
+    container.appendChild(slide);
+    // Trigger reflow
+    slide.offsetHeight;
+    slide.classList.add('active');
+
+    if(!this.paused){
+      const dur = (item.media?.media_type==='video' ? 0 : item.duration) * 1000;
+      if(dur>0) this.startProgress(dur, ()=>this.next());
+    }
+  },
+
+  buildSlide(item){
+    const div=document.createElement('div');
+    div.className='slide';
+    const m=item.media;
+    if(!m) return div;
+
+    if(m.media_type==='image'){
+      const img=document.createElement('img');
+      img.src=m.file_path;
+      img.alt='';
+      div.appendChild(img);
+
+    } else if(m.media_type==='video'){
+      const vid=document.createElement('video');
+      vid.src=m.file_path;
+      vid.autoplay=true;
+      vid.muted=false;
+      vid.volume=0.5;
+      vid.playsInline=true;
+      vid.onended=()=>this.next();
+      vid.onerror=()=>this.next();
+      div.appendChild(vid);
+
+    } else if(m.media_type==='widget'){
+      const cfg=m.widget_config||{};
+      const type=cfg.type||'clock';
+      div.appendChild(this.buildWidget(type,cfg));
+    }
+    return div;
+  },
+
+  buildWidget(type, cfg){
+    const w=document.createElement('div');
+    w.className=`widget widget-${type}`;
+
+    if(type==='clock'){
+      const timeEl=document.createElement('div');timeEl.className='clock-time';
+      const dateEl=document.createElement('div');dateEl.className='clock-date';
+      w.appendChild(timeEl);
+      if(cfg.show_date!==false) w.appendChild(dateEl);
+      const tick=()=>{
+        const now=cfg.timezone
+          ? new Date(new Date().toLocaleString('en-US',{timeZone:cfg.timezone}))
+          : new Date();
+        const h=String(now.getHours()).padStart(2,'0');
+        const mi=String(now.getMinutes()).padStart(2,'0');
+        const s=String(now.getSeconds()).padStart(2,'0');
+        timeEl.textContent=`${h}:${mi}:${s}`;
+        dateEl.textContent=now.toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      };
+      tick();
+      w._interval=setInterval(tick,1000);
+
+    } else if(type==='weather'){
+      w.innerHTML='<div class="weather-icon">⏳</div><div class="weather-temp">…</div><div class="weather-desc">Loading</div><div class="weather-city"></div>';
+      this.fetchWeather(cfg).then(data=>{
+        if(!data) return;
+        w.querySelector('.weather-icon').textContent=data.icon;
+        w.querySelector('.weather-temp').textContent=`${Math.round(data.temp)}°`;
+        w.querySelector('.weather-desc').textContent=data.desc;
+        w.querySelector('.weather-city').textContent=data.city;
+      });
+      // Refresh every 10 min
+      w._interval=setInterval(()=>{
+        this.fetchWeather(cfg).then(data=>{
+          if(!data||!w.isConnected) return;
+          w.querySelector('.weather-icon').textContent=data.icon;
+          w.querySelector('.weather-temp').textContent=`${Math.round(data.temp)}°`;
+          w.querySelector('.weather-desc').textContent=data.desc;
+        });
+      },600000);
+
+    } else if(type==='text'){
+      const speed=parseFloat(cfg.speed)||5;
+      const isScroll=cfg.scroll!==false;
+      w.innerHTML=`<div class="ticker-wrap"><div class="ticker-inner${isScroll?'':' static'}" style="animation-duration:${21-speed*2}s">${cfg.text||'Hello World'}</div></div>`;
+
+    } else if(type==='rss'){
+      w.innerHTML=`<div class="rss-source">RSS</div><div class="rss-headline">Loading…</div><div class="rss-pub"></div>`;
+      this.fetchRSS(cfg,w);
+      w._rssInterval=setInterval(()=>this.fetchRSS(cfg,w),30000);
+    }
+
+    return w;
+  },
+
+  async fetchWeather(cfg){
+    if(!cfg.api_key||!cfg.city) return null;
+    try{
+      const units=cfg.units||'metric';
+      const r=await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cfg.city)}&units=${units}&appid=${cfg.api_key}`);
+      const d=await r.json();
+      const iconMap={'01d':'☀️','01n':'🌙','02d':'⛅','02n':'🌙','03d':'☁️','04d':'☁️','09d':'🌧','10d':'🌦','11d':'⛈','13d':'❄️','50d':'🌫'};
+      const icon=iconMap[d.weather?.[0]?.icon?.replace('n','d')]||'🌡';
+      return{icon,temp:d.main.temp,desc:d.weather[0].description,city:d.name};
+    }catch(e){return null;}
+  },
+
+  async fetchRSS(cfg,w){
+    if(!cfg.url) return;
+    try{
+      const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(cfg.url)}`);
+      const d=await r.json();
+      if(!d.items?.length) return;
+      const rnd=d.items[Math.floor(Math.random()*Math.min(d.items.length,5))];
+      w.querySelector('.rss-source').textContent=d.feed?.title||'NEWS';
+      w.querySelector('.rss-headline').textContent=rnd.title;
+      w.querySelector('.rss-pub').textContent=new Date(rnd.pubDate).toLocaleString();
+    }catch(e){}
+  },
+
+  clearSlides(){
+    document.getElementById('player').innerHTML='';
+  },
+
+  next(force=false){
+    if(this.paused&&!force) return;
+    this.showSlide(this.index+1);
+  },
+
+  prev(){
+    this.showSlide(this.index-1);
+  },
+
+  // ── Progress bar ──────────────────────────────────────────────────────────
+  startProgress(ms, onDone){
+    const bar=document.getElementById('progress');
+    bar.style.transition='none';
+    bar.style.width='0';
+    bar.offsetHeight; // reflow
+    bar.style.transition=`width ${ms}ms linear`;
+    bar.style.width='100%';
+    this.timer=setTimeout(()=>{onDone();},ms);
+  },
+
+  pauseProgress(){
+    const bar=document.getElementById('progress');
+    const computed=getComputedStyle(bar).width;
+    const total=window.innerWidth;
+    this._progressPct=parseInt(computed)/total;
+    bar.style.transition='none';
+    bar.style.width=computed;
+    clearTimeout(this.timer);
+  },
+
+  resumeProgress(){
+    if(this._progressPct===undefined) return;
+    const item=this.items[this.index];
+    if(!item||item.media?.media_type==='video') return;
+    const totalMs=item.duration*1000;
+    const remaining=totalMs*(1-this._progressPct);
+    this.startProgress(remaining,()=>this.next());
+  },
+
+  clearProgressAnim(){
+    const bar=document.getElementById('progress');
+    bar.style.transition='none';
+    bar.style.width='0';
+  },
+};
+
+Player.init();
+</script>
+</body>
+</html>

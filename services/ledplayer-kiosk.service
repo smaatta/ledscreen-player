@@ -1,0 +1,52 @@
+[Unit]
+Description=LedscreenPlayer Kiosk Browser (LED region window)
+After=graphical.target ledplayer-api.service
+Wants=ledplayer-api.service
+
+[Service]
+Type=simple
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+
+# Wait for the API server and X session to be ready
+ExecStartPre=/bin/sleep 5
+
+# Load display region config and launch Chromium positioned exactly
+# over the area that the Linsn SB-8 captures from the extended desktop.
+#
+# --window-position=X,Y  places the window at the upper-right of the
+#                        secondary output (where the SB-8 starts capturing)
+# --window-size=W,H      matches the LED panel resolution
+# --app=URL              opens without browser chrome (address bar, tabs)
+#
+# Edit /home/pi/ledscreen-player/display.conf to set LED_X, LED_Y, LED_WIDTH, LED_HEIGHT
+ExecStart=/bin/bash -c '\
+  source /home/pi/ledscreen-player/display.conf && \
+  /usr/bin/chromium-browser \
+    --app=http://localhost:8000/player \
+    --window-position=${LED_X},${LED_Y} \
+    --window-size=${LED_WIDTH},${LED_HEIGHT} \
+    --noerrdialogs \
+    --disable-infobars \
+    --no-first-run \
+    --disable-translate \
+    --disable-features=TranslateUI \
+    --disable-session-crashed-bubble \
+    --disable-restore-session-state \
+    --autoplay-policy=no-user-gesture-required \
+    --check-for-update-interval=31536000 \
+    --disable-background-timer-throttling \
+    --disable-backgrounding-occluded-windows \
+    --disable-renderer-backgrounding \
+    --hide-scrollbars \
+    --overscroll-history-navigation=0'
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ledplayer-kiosk
+
+[Install]
+WantedBy=graphical.target

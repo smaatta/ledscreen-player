@@ -1,0 +1,19 @@
+[Unit]
+Description=LedscreenPlayer API Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ledscreen-player
+ExecStart=/home/pi/ledscreen-player/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=always
+RestartSec=5
+Environment=PYTHONPATH=/home/pi/ledscreen-player
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ledplayer-api
+
+[Install]
+WantedBy=multi-user.target

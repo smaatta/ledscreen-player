@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>LedscreenPlayer Debug</title>
+<style>
+body{background:#0f1117;color:#e2e8f0;font-family:monospace;padding:20px}
+h2{color:#60a5fa;margin-bottom:16px}
+.section{background:#161b27;border:1px solid #1e2535;border-radius:8px;padding:16px;margin-bottom:16px}
+.section h3{color:#94a3b8;font-size:.8rem;text-transform:uppercase;margin-bottom:10px}
+.ok{color:#22c55e} .err{color:#ef4444} .warn{color:#f59e0b}
+pre{font-size:.8rem;white-space:pre-wrap;word-break:break-all}
+button{background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;margin-right:8px;margin-bottom:8px}
+video{max-width:100%;max-height:200px;background:#000;display:block;margin-top:8px}
+</style>
+</head>
+<body>
+<h2>🔧 LedscreenPlayer Debug</h2>
+
+<div class="section">
+  <h3>Player State (API)</h3>
+  <pre id="api-state">Loading…</pre>
+</div>
+
+<div class="section">
+  <h3>WebSocket</h3>
+  <pre id="ws-state">Connecting…</pre>
+</div>
+
+<div class="section">
+  <h3>Direct Video Test</h3>
+  <pre id="video-state">Waiting for playlist data…</pre>
+  <button onclick="testVideo()">▶ Test Play Video</button>
+  <video id="test-video" controls></video>
+</div>
+
+<div class="section">
+  <h3>Player Page iframe test</h3>
+  <button onclick="loadPlayer()">Load Player Page</button>
+  <pre id="player-errors"></pre>
+  <iframe id="player-frame" style="width:100%;height:300px;border:1px solid #2d3748;display:none"></iframe>
+</div>
+
+<div class="section">
+  <h3>Console Log</h3>
+  <pre id="console-log"></pre>
+</div>
+
+<script>
+const log = (msg, type='') => {
+  const el = document.getElementById('console-log');
+  const line = document.createElement('div');
+  line.className = type;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.prepend(line);
+};
+
+// ── API State ─────────────────────────────────────────────────────────────────
+fetch('/api/player/state')
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('api-state').textContent = JSON.stringify(d, null, 2);
+    log('API state loaded OK', 'ok');
+
+    // Set up video test with first item
+    const items = d.playlist?.items || [];
+    if (items.length > 0) {
+      const item = items[0];
+      const filePath = item.media?.file_path;
+      document.getElementById('video-state').textContent =
+        `File path: ${filePath}\nMedia type: ${item.media?.media_type}\nLoop: ${item.loop}`;
+      document.getElementById('test-video').src = filePath;
+    } else {
+      document.getElementById('video-state').textContent = 'No items in active playlist!';
+      log('No playlist items found', 'warn');
+    }
+  })
+  .catch(e => {
+    document.getElementById('api-state').textContent = 'ERROR: ' + e;
+    log('API state failed: ' + e, 'err');
+  });
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(`${proto}//${location.host}/api/player/ws`);
+ws.onopen = () => {
+  document.getElementById('ws-state').innerHTML = '<span class="ok">✔ Connected</span>';
+  log('WebSocket connected', 'ok');
+};
+ws.onmessage = e => {
+  if (e.data === 'pong') return;
+  try {
+    const msg = JSON.parse(e.data);
+    log(`WS message received: type=${msg.type}`, 'ok');
+    document.getElementById('ws-state').innerHTML =
+      `<span class="ok">✔ Connected — last message: ${msg.type}</span>\n\n` +
+      JSON.stringify(msg, null, 2);
+  } catch(err) {
+    log('WS parse error: ' + err + ' | data: ' + e.data, 'err');
+  }
+};
+ws.onerror = e => {
+  document.getElementById('ws-state').innerHTML = '<span class="err">✖ Error</span>';
+  log('WebSocket error', 'err');
+};
+ws.onclose = () => {
+  document.getElementById('ws-state').innerHTML = '<span class="warn">⚠ Closed</span>';
+  log('WebSocket closed', 'warn');
+};
+
+// ── Video test ────────────────────────────────────────────────────────────────
+function testVideo() {
+  const v = document.getElementById('test-video');
+  v.muted = true;
+  v.play()
+    .then(() => log('Video playing OK ✔', 'ok'))
+    .catch(e => log('Video play() failed: ' + e, 'err'));
+
+  v.oncanplay   = () => log('Video: canplay event fired', 'ok');
+  v.onerror     = () => log('Video error: ' + (v.error?.message || v.error?.code), 'err');
+  v.onstalled   = () => log('Video: stalled', 'warn');
+  v.onsuspend   = () => log('Video: suspended', 'warn');
+}
+
+function loadPlayer() {
+  const f = document.getElementById('player-frame');
+  f.style.display = 'block';
+  f.src = '/player';
+  log('Loading player page in iframe…');
+}
+</script>
+</body>
+</html>

@@ -26,11 +26,13 @@ class ItemAdd(BaseModel):
     media_id: int
     duration: int = 10
     transition: str = "fade"
+    loop: bool = False
 
 
 class ItemUpdate(BaseModel):
     duration: Optional[int] = None
     transition: Optional[str] = None
+    loop: Optional[bool] = None
 
 
 class ItemsReorder(BaseModel):
@@ -107,6 +109,7 @@ def add_item(playlist_id: int, body: ItemAdd, db: Session = Depends(get_db)):
         order       = max_order + 1,
         duration    = body.duration,
         transition  = body.transition,
+        loop        = body.loop,
     )
     db.add(item)
     pl.updated_at = datetime.utcnow()
@@ -127,6 +130,8 @@ def update_item(playlist_id: int, item_id: int, body: ItemUpdate, db: Session = 
         item.duration = body.duration
     if body.transition is not None:
         item.transition = body.transition
+    if body.loop is not None:
+        item.loop = body.loop
     db.commit()
     db.refresh(item)
     return item.to_dict()

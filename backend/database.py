@@ -107,6 +107,7 @@ class PlaylistItem(Base):
     order       = Column(Integer, default=0)
     duration    = Column(Integer, default=10)    # display seconds (images/widgets)
     transition  = Column(String, default="fade") # fade | slide | none
+    loop        = Column(Boolean, default=False) # loop video indefinitely
 
     playlist = relationship("Playlist", back_populates="items")
     media    = relationship("Media", back_populates="playlist_items")
@@ -119,6 +120,7 @@ class PlaylistItem(Base):
             "order":       self.order,
             "duration":    self.duration,
             "transition":  self.transition,
+            "loop":        self.loop,
             "media":       self.media.to_dict() if self.media else None,
         }
 

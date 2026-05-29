@@ -281,7 +281,8 @@ const Player = {
       vid.muted=false;
       vid.volume=0.5;
       vid.playsInline=true;
-      vid.onended=()=>this.next();
+      vid.loop=item.loop||false;
+      vid.onended=()=>{ if(!item.loop) this.next(); };
       vid.onerror=()=>this.next();
       div.appendChild(vid);
 

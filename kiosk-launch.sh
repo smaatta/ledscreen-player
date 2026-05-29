@@ -12,6 +12,9 @@ CHROMIUM=$(command -v chromium || command -v chromium-browser)
 
 echo "[kiosk] Starting in kiosk mode, content area: ${LED_WIDTH}x${LED_HEIGHT}"
 
+# Hide mouse cursor using unclutter
+unclutter -idle 0 -root &
+
 exec $CHROMIUM \
     --kiosk \
     --app="http://localhost:8000/player?w=${LED_WIDTH}&h=${LED_HEIGHT}" \

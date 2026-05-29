@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from backend.database import init_db, SessionLocal
-from backend.routes import media, playlists, schedule, player
+from backend.routes import media, playlists, schedule, player, settings
 
 BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -45,6 +45,7 @@ app.include_router(media.router)
 app.include_router(playlists.router)
 app.include_router(schedule.router)
 app.include_router(player.router)
+app.include_router(settings.router)
 
 
 # ── Page routes ───────────────────────────────────────────────────────────────

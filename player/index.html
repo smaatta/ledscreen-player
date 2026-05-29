@@ -251,9 +251,8 @@ const Player = {
     });
 
     const slide = this.buildSlide(item);
-    slide.style.opacity='0';
     container.appendChild(slide);
-    // Trigger reflow
+    // Trigger reflow before adding active class to enable CSS transition
     slide.offsetHeight;
     slide.classList.add('active');
 

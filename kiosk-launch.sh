@@ -1,8 +1,8 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
 # LedscreenPlayer kiosk launcher
-# Positions Chromium at the exact region the Linsn SB-8 captures.
-# Edit display.conf to change the capture area.
+# Uses --kiosk for full-screen (removes taskbar and title bar)
+# Player HTML constrains content to the SB-8 capture area (top-left corner)
 # ─────────────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,14 +10,11 @@ source "$SCRIPT_DIR/display.conf"
 
 CHROMIUM=$(command -v chromium || command -v chromium-browser)
 
-echo "[kiosk] Starting Chromium at ${LED_X},${LED_Y} size ${LED_WIDTH}x${LED_HEIGHT}"
+echo "[kiosk] Starting in kiosk mode, content area: ${LED_WIDTH}x${LED_HEIGHT}"
 
-# Launch Chromium as an app window (no browser chrome)
-$CHROMIUM \
-    --ozone-platform=x11 \
-    --app=http://localhost:8000/player \
-    --window-position=${LED_X},${LED_Y} \
-    --window-size=${LED_WIDTH},${LED_HEIGHT} \
+exec $CHROMIUM \
+    --kiosk \
+    --app="http://localhost:8000/player?w=${LED_WIDTH}&h=${LED_HEIGHT}" \
     --noerrdialogs \
     --disable-infobars \
     --no-first-run \
@@ -33,29 +30,4 @@ $CHROMIUM \
     --hide-scrollbars \
     --overscroll-history-navigation=0 \
     --password-store=basic \
-    --use-mock-keychain &
-
-CHROMIUM_PID=$!
-echo "[kiosk] Chromium PID: $CHROMIUM_PID"
-
-# Wait for the window to appear
-sleep 4
-
-# Find the window by PID and remove its title bar decorations
-WID=$(xdotool search --pid $CHROMIUM_PID 2>/dev/null | tail -1)
-if [ -n "$WID" ]; then
-    echo "[kiosk] Found window ID: $WID — removing decorations"
-    # Override-redirect bypasses the window manager entirely — no title bar guaranteed
-    xdotool set_window --overrideredirect 1 $WID
-    # Force exact position and size
-    xdotool windowmove $WID ${LED_X} ${LED_Y}
-    xdotool windowsize $WID ${LED_WIDTH} ${LED_HEIGHT}
-    # Raise to top
-    xdotool windowraise $WID
-    echo "[kiosk] Window positioned at ${LED_X},${LED_Y} ${LED_WIDTH}x${LED_HEIGHT}"
-else
-    echo "[kiosk] Warning: could not find Chromium window"
-fi
-
-# Keep script alive (systemd/autostart needs the process to stay running)
-wait $CHROMIUM_PID
+    --use-mock-keychain

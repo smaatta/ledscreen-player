@@ -8,8 +8,8 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:none}
 
-/* Slides container */
-#player{position:relative;width:100vw;height:100vh;background:#000;overflow:hidden}
+/* Slides container — fixed to the SB-8 capture area (top-left corner) */
+#player{position:fixed;top:0;left:0;width:var(--led-w,768px);height:var(--led-h,256px);background:#000;overflow:hidden}
 
 /* Individual slide */
 .slide{
@@ -151,6 +151,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:none}
 <div id="offline">⚠ Reconnecting…</div>
 
 <script>
+// Apply capture area dimensions from URL params (?w=768&h=256)
+;(()=>{
+  const p = new URLSearchParams(location.search);
+  const w = p.get('w'), h = p.get('h');
+  if(w && h){
+    document.documentElement.style.setProperty('--led-w', w+'px');
+    document.documentElement.style.setProperty('--led-h', h+'px');
+  }
+})();
+
 const Player = {
   playlist:     null,
   items:        [],

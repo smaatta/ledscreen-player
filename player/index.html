@@ -278,14 +278,13 @@ const Player = {
     } else if(m.media_type==='video'){
       const vid=document.createElement('video');
       vid.src=m.file_path;
-      vid.autoplay=true;
-      vid.muted=false;
-      vid.volume=0.5;
+      vid.muted=true;
       vid.playsInline=true;
       vid.loop=item.loop||false;
       vid.onended=()=>{ if(!item.loop) this.next(); };
       vid.onerror=()=>this.next();
       div.appendChild(vid);
+      vid.play().catch(()=>this.next());
 
     } else if(m.media_type==='widget'){
       const cfg=m.widget_config||{};

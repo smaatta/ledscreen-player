@@ -14,6 +14,7 @@ echo "[kiosk] Starting Chromium at ${LED_X},${LED_Y} size ${LED_WIDTH}x${LED_HEI
 
 # Launch Chromium as an app window (no browser chrome)
 $CHROMIUM \
+    --ozone-platform=x11 \
     --app=http://localhost:8000/player \
     --window-position=${LED_X},${LED_Y} \
     --window-size=${LED_WIDTH},${LED_HEIGHT} \
@@ -44,9 +45,8 @@ sleep 4
 WID=$(xdotool search --pid $CHROMIUM_PID 2>/dev/null | tail -1)
 if [ -n "$WID" ]; then
     echo "[kiosk] Found window ID: $WID — removing decorations"
-    # Remove title bar via Motif window manager hints
-    xprop -id $WID -f _MOTIF_WM_HINTS 32c \
-        -set _MOTIF_WM_HINTS "0x2, 0x0, 0x0, 0x0, 0x0"
+    # Override-redirect bypasses the window manager entirely — no title bar guaranteed
+    xdotool set_window --overrideredirect 1 $WID
     # Force exact position and size
     xdotool windowmove $WID ${LED_X} ${LED_Y}
     xdotool windowsize $WID ${LED_WIDTH} ${LED_HEIGHT}

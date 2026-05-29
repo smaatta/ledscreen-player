@@ -6,8 +6,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-INSTALL_DIR="/home/pi/ledscreen-player"
-SERVICE_USER="pi"
+INSTALL_DIR="$HOME/ledscreen-player"
+SERVICE_USER="$(whoami)"
 PYTHON="python3"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -71,7 +71,7 @@ ok "Directories created."
 
 # ── 5. Disable screen blanking ───────────────────────────────────────────────
 info "Disabling screen saver / blanking…"
-XSCREENSAVER_CFG="/home/pi/.xscreensaver"
+XSCREENSAVER_CFG="$HOME/.xscreensaver"
 cat > "$XSCREENSAVER_CFG" << 'EOF'
 mode:		off
 lock:		False
@@ -96,7 +96,7 @@ fi
 ok "Screen blanking disabled."
 
 # ── 6. Hide mouse cursor (unclutter) ─────────────────────────────────────────
-AUTOSTART_DIR="/home/pi/.config/autostart"
+AUTOSTART_DIR="$HOME/.config/autostart"
 mkdir -p "$AUTOSTART_DIR"
 
 cat > "$AUTOSTART_DIR/unclutter.desktop" << 'EOF'
@@ -133,11 +133,11 @@ fi
 info "Installing systemd services…"
 
 # Patch service files with actual install dir & user
-sed "s|/home/pi/ledscreen-player|$INSTALL_DIR|g; s|User=pi|User=$SERVICE_USER|g" \
+sed "s|/home/pi/ledscreen-player|$INSTALL_DIR|g; s|/home/pi|$HOME|g; s|User=pi|User=$SERVICE_USER|g" \
     services/ledplayer-api.service | sudo tee /etc/systemd/system/ledplayer-api.service > /dev/null
 
-# Kiosk service: patch path and also update the display.conf reference
-sed "s|/home/pi/ledscreen-player|$INSTALL_DIR|g; s|User=pi|User=$SERVICE_USER|g" \
+# Kiosk service: patch all paths including .Xauthority
+sed "s|/home/pi/ledscreen-player|$INSTALL_DIR|g; s|/home/pi|$HOME|g; s|User=pi|User=$SERVICE_USER|g" \
     services/ledplayer-kiosk.service | sudo tee /etc/systemd/system/ledplayer-kiosk.service > /dev/null
 
 info "Edit ${INSTALL_DIR}/display.conf to set your LED panel position and resolution."

@@ -24,10 +24,26 @@ info "Updating package list…"
 sudo apt-get update -qq
 
 info "Installing system dependencies…"
+
+# Detect correct Chromium package name (Bookworm uses 'chromium', older uses 'chromium-browser')
+if apt-cache show chromium &>/dev/null 2>&1; then
+    CHROMIUM_PKG="chromium"
+else
+    CHROMIUM_PKG="chromium-browser"
+fi
+info "Using Chromium package: $CHROMIUM_PKG"
+
+# libgl1-mesa-glx was renamed to libgl1 in Bookworm
+if apt-cache show libgl1-mesa-glx &>/dev/null 2>&1; then
+    GL_PKG="libgl1-mesa-glx"
+else
+    GL_PKG="libgl1"
+fi
+
 sudo apt-get install -y -qq \
     python3 python3-pip python3-venv \
-    chromium-browser \
-    libgl1-mesa-glx \
+    $CHROMIUM_PKG \
+    $GL_PKG \
     ffmpeg \
     xdotool \
     unclutter \

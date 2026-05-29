@@ -23,7 +23,8 @@ ExecStartPre=/bin/sleep 5
 # Edit /home/pi/ledscreen-player/display.conf to set LED_X, LED_Y, LED_WIDTH, LED_HEIGHT
 ExecStart=/bin/bash -c '\
   source /home/pi/ledscreen-player/display.conf && \
-  /usr/bin/chromium-browser \
+  CHROMIUM=$(command -v chromium || command -v chromium-browser) && \
+  $CHROMIUM \
     --app=http://localhost:8000/player \
     --window-position=${LED_X},${LED_Y} \
     --window-size=${LED_WIDTH},${LED_HEIGHT} \

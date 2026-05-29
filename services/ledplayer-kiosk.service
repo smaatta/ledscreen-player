@@ -12,36 +12,50 @@ Environment=XAUTHORITY=/home/pi/.Xauthority
 # Wait for the API server and X session to be ready
 ExecStartPre=/bin/sleep 5
 
-# Load display region config and launch Chromium positioned exactly
-# over the area that the Linsn SB-8 captures from the extended desktop.
-#
-# --window-position=X,Y  places the window at the upper-right of the
-#                        secondary output (where the SB-8 starts capturing)
-# --window-size=W,H      matches the LED panel resolution
-# --app=URL              opens without browser chrome (address bar, tabs)
-#
-# Edit /home/pi/ledscreen-player/display.conf to set LED_X, LED_Y, LED_WIDTH, LED_HEIGHT
+# Launch Chromium in kiosk mode.
+# When SB-8 is connected as a secondary display, set LED_X, LED_Y, LED_WIDTH,
+# LED_HEIGHT in display.conf and the launcher script will position the window.
 ExecStart=/bin/bash -c '\
   source ${INSTALL_DIR:-$HOME/ledscreen-player}/display.conf && \
   CHROMIUM=$(command -v chromium || command -v chromium-browser) && \
-  $CHROMIUM \
-    --app=http://localhost:8000/player \
-    --window-position=${LED_X},${LED_Y} \
-    --window-size=${LED_WIDTH},${LED_HEIGHT} \
-    --noerrdialogs \
-    --disable-infobars \
-    --no-first-run \
-    --disable-translate \
-    --disable-features=TranslateUI \
-    --disable-session-crashed-bubble \
-    --disable-restore-session-state \
-    --autoplay-policy=no-user-gesture-required \
-    --check-for-update-interval=31536000 \
-    --disable-background-timer-throttling \
-    --disable-backgrounding-occluded-windows \
-    --disable-renderer-backgrounding \
-    --hide-scrollbars \
-    --overscroll-history-navigation=0'
+  if [ "${LED_X}" = "0" ] && [ "${LED_Y}" = "0" ]; then \
+    $CHROMIUM \
+      --kiosk \
+      http://localhost:8000/player \
+      --noerrdialogs \
+      --disable-infobars \
+      --no-first-run \
+      --disable-translate \
+      --disable-features=TranslateUI \
+      --disable-session-crashed-bubble \
+      --disable-restore-session-state \
+      --autoplay-policy=no-user-gesture-required \
+      --check-for-update-interval=31536000 \
+      --disable-background-timer-throttling \
+      --disable-backgrounding-occluded-windows \
+      --disable-renderer-backgrounding \
+      --hide-scrollbars \
+      --overscroll-history-navigation=0; \
+  else \
+    $CHROMIUM \
+      --app=http://localhost:8000/player \
+      --window-position=${LED_X},${LED_Y} \
+      --window-size=${LED_WIDTH},${LED_HEIGHT} \
+      --noerrdialogs \
+      --disable-infobars \
+      --no-first-run \
+      --disable-translate \
+      --disable-features=TranslateUI \
+      --disable-session-crashed-bubble \
+      --disable-restore-session-state \
+      --autoplay-policy=no-user-gesture-required \
+      --check-for-update-interval=31536000 \
+      --disable-background-timer-throttling \
+      --disable-backgrounding-occluded-windows \
+      --disable-renderer-backgrounding \
+      --hide-scrollbars \
+      --overscroll-history-navigation=0; \
+  fi'
 
 Restart=always
 RestartSec=5

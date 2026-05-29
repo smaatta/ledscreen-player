@@ -191,6 +191,7 @@ const Player = {
       this._pingInterval=setInterval(()=>this.ws.readyState===1&&this.ws.send('ping'),10000);
     };
     this.ws.onmessage=e=>{
+      if(e.data==='pong') return;
       const msg=JSON.parse(e.data);
       if(msg.type==='player_update') this.applyUpdate(msg);
       if(msg.type==='command'){
